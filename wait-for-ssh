@@ -1,0 +1,139 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Wait until the cloud-init box becomes responsive on ssh.
+# Copyright (C) 2017 Pavel Raiskup
+#
+# This program accepts one argument IP or HOSTNAME.  First try to connect to the
+# HOSTNAME as 'root' user.  If cloud-init scripts instruct us to use different
+# user than 'root', switch to that user and check again.  In the end, print the
+# successful username on stdout.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+from re import compile as re_compile
+from time import sleep
+from sys import exit
+from os import devnull
+from threading import Thread, Event
+from argparse import ArgumentParser
+from subprocess import Popen, CalledProcessError, PIPE
+from pipes import quote
+
+import logging
+
+level = logging.DEBUG
+handler = logging.StreamHandler()
+handler.setLevel(level)
+log = logging.getLogger('ssh-wait')
+log.setLevel(level)
+log.addHandler(handler)
+
+# create console handler and set level to debug
+
+ssh = [
+    'ssh',
+    '-o', 'StrictHostKeyChecking=no',
+    '-o', 'UserKnownHostsFile=/dev/null',
+    '-o', 'PasswordAuthentication=no',
+]
+
+expected_output = 'foobar'
+inner_cmd = 'echo ' + expected_output
+
+
+class Checker(Thread):
+    user = 'root'
+    daemon = True
+    re_clouduser = re_compile('Please login as the user "(\w+)"')
+    event = Event()
+
+    def loop(self):
+        cmd = ssh + [
+            '{0}@{1}'.format(self.user, self.args.host),
+            inner_cmd,
+        ]
+
+        with open(devnull, 'w') as drop:
+            self.child = Popen(cmd, stdout=PIPE, stderr=drop)
+            (stdout, _) = self.child.communicate()
+
+        if self.child.returncode == 0 and stdout == expected_output + '\n':
+            if self.args.print_user:
+                print(self.user)
+            return True
+
+        if self.args.cloud_user:
+            match = self.re_clouduser.search(stdout)
+            if match:
+                self.user = match.group(1)
+                log.info('cloud user switched to ' + self.user)
+                return False
+
+    def run(self):
+        while True:
+            if self.loop():
+                # Success!
+                break
+
+            if self.event.wait(1):
+                break
+
+    def kill(self):
+        self.event.set()
+
+        # Best effort kill.
+        try:
+            self.child.terminate()
+        except:
+            pass
+        self.join()
+
+
+parser = ArgumentParser()
+parser.add_argument('host', help='hostname or IP')
+parser.add_argument('--timeout',
+        help='seconds to wait before failure, default=indefinitely',
+        default=None, type=float)
+parser.add_argument('--check-cloud-user', action='store_true', default=False,
+        dest='cloud_user',
+        help='if cloud-init disallows "root" login, try to detect the cloud ' \
+            +'user and use that')
+parser.add_argument('--print-user', action='store_true', default=False,
+        dest='print_user',
+        help='print the username which succeeded to connect on stdout')
+
+
+def main():
+    args = parser.parse_args()
+
+    checker = Checker()
+    checker.args = args
+    checker.start()
+    try:
+        checker.join(args.timeout)
+        if checker.is_alive():
+            log.error("timeout!")
+            checker.kill()
+            return 1
+        return 0
+
+    except KeyboardInterrupt:
+        log.error("interrupt by user")
+        checker.kill()
+        return 1
+
+if __name__ == "__main__":
+    exit(main())
