@@ -1,5 +1,5 @@
-Wait until ssh on (recently started) box (presumably) in cloud becomes
-responsive, or --timeout is reached.
+Wait till the ssh daemon (presumably) located in cloud becomes responsive,
+or until --timeout is reached.
 
 At this moment, public key of the actual user (owner of ~/.ssh/config)
 needs to be stored in authorized_keys on the HOST side.
