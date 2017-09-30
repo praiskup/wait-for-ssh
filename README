@@ -1,5 +1,11 @@
-Wait until ssh on (recently started) box (presumably) in clod becomes
-responsive.
+Wait until ssh on (recently started) box (presumably) in cloud becomes
+responsive, or --timeout is reached.
 
 At this moment, public key of the actual user (owner of ~/.ssh/config)
 needs to be stored in authorized_keys on the HOST side.
+
+With --print-user and --check-cloud-user, you can work-around the known
+security measure like:
+
+  Please login as the user "centos" rather than the user "root"
+  Please login as the user "fedora" rather than the user "root"
