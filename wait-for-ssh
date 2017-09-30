@@ -37,7 +37,7 @@ import logging
 level = logging.DEBUG
 handler = logging.StreamHandler()
 handler.setLevel(level)
-log = logging.getLogger('ssh-wait')
+log = logging.getLogger()
 log.setLevel(level)
 log.addHandler(handler)
 
@@ -70,13 +70,14 @@ class Checker(Thread):
             self.child = Popen(cmd, stdout=PIPE, stderr=drop)
             (stdout, _) = self.child.communicate()
 
-        if self.child.returncode == 0 and stdout == expected_output + '\n':
+        exp = (expected_output + '\n').encode('ascii')
+        if self.child.returncode == 0 and stdout == exp:
             if self.args.print_user:
                 print(self.user)
             return True
 
         if self.args.cloud_user:
-            match = self.re_clouduser.search(stdout)
+            match = self.re_clouduser.search(str(stdout))
             if match:
                 self.user = match.group(1)
                 log.info('cloud user switched to ' + self.user)
@@ -89,6 +90,7 @@ class Checker(Thread):
                 break
 
             if self.event.wait(1):
+                log.debug("stopping per kill event")
                 break
 
     def kill(self):
@@ -96,7 +98,7 @@ class Checker(Thread):
 
         # Best effort kill.
         try:
-            self.child.terminate()
+            self.child.kill()
         except:
             pass
         self.join()
@@ -117,18 +119,34 @@ parser.add_argument('--print-user', action='store_true', default=False,
 
 
 def main():
+    sleep_period = 1.0
     args = parser.parse_args()
+
+    def timeouted():
+        if args.timeout is None:
+            return False
+        log.debug("wait {0}s, remains {1}s".format(sleep_period, args.timeout))
+        args.timeout -= sleep_period
+        return args.timeout <= 0
 
     checker = Checker()
     checker.args = args
     checker.start()
+
     try:
-        checker.join(args.timeout)
-        if checker.is_alive():
-            log.error("timeout!")
-            checker.kill()
-            return 1
-        return 0
+        # threading.join() is not Ctrl-C interruptable :( in python2, so we need
+        # this ugly infinite loop.
+        # https://stackoverflow.com/questions/25676835/signal-handling-in-multi-threaded-python
+        while True:
+            checker.join(sleep_period)
+            if not checker.is_alive():
+                # Success!
+                return 0
+
+            if timeouted():
+                log.error("timeout!")
+                checker.kill()
+                return 1
 
     except KeyboardInterrupt:
         log.error("interrupt by user")
