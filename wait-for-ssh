@@ -64,6 +64,7 @@ class Checker(Thread):
         ]
 
         with open(devnull, 'w') as drop:
+            log.debug('executing: ' + ' '.join(cmd))
             self.child = Popen(cmd, stdout=PIPE, stderr=drop)
             (stdout, _) = self.child.communicate()
 
