@@ -35,7 +35,7 @@ import logging
 
 handler = logging.StreamHandler()
 log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 log.addHandler(handler)
 
 # create console handler and set level to debug
