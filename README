@@ -9,3 +9,4 @@ security measure like:
 
   Please login as the user "centos" rather than the user "root"
   Please login as the user "fedora" rather than the user "root"
+  Please login as the user "cloud-user" rather than the user "root".
