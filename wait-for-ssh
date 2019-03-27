@@ -54,7 +54,8 @@ inner_cmd = 'echo ' + expected_output
 class Checker(Thread):
     user = 'root'
     daemon = True
-    re_clouduser = re_compile('Please login as the user "([\w-]+)"')
+    user_re = '[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[$]?'
+    re_clouduser = re_compile('Please login as the user "({0})"'.format(user_re))
     event = Event()
 
     def loop(self):
