@@ -23,14 +23,11 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 from re import compile as re_compile
-from time import sleep
-from sys import exit
+import sys
 from os import devnull
 from threading import Thread, Event
 from argparse import ArgumentParser
-from subprocess import Popen, CalledProcessError, PIPE
-from pipes import quote
-
+from subprocess import Popen, PIPE
 import logging
 
 handler = logging.StreamHandler()
@@ -161,4 +158,4 @@ def main():
         return 1
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())
